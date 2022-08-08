@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: $(ORG)-ca
+  namespace: hyperledger
+  labels:
+    app: $(ORG)-ca
+    type: blockchain
+spec:
+  selector:
+    matchLabels:
+      app: $(ORG)-ca
+      type: blockchain
+  template:
+    metadata:
+      labels:
+        app: $(ORG)-ca
+        type: blockchain
+    spec:
+      containers:
+        - name: $(ORG)-ca
+          image: hyperledger/fabric-ca:1.4.9
+          imagePullPolicy: IfNotPresent
+          command: ['/bin/sh']
+          args: ['-c', 'fabric-ca-server start -b admin:Loxnetwork@123']
+          env:
+            - name: FABRIC_CA_HOME
+              value: /etc/hyperledger/fabric-ca-server
+            - name: FABRIC_CA_SERVER_TLS_ENABLED
+              value: 'true'
+            - name: FABRIC_CA_SERVER_CA_NAME
+              value: $(ORG)-ca
+            - name: FABRIC_CA_SERVER_DB_TYPE
+              value: postgres
+            - name: FABRIC_CA_SERVER_DB_DATASOURCE
+              value: host=ca-postgres-svc port=5432 user=loxnetwork password=Loxnetwork@123 dbname=user_ca sslmode=disable
+            - name: FABRIC_CA_SERVER_CSR_HOSTS
+              value: $(ORG)-ca-svc , $(ORG)-ca-svc.hyperledger.svc.cluster.local, localhost
+          volumeMounts:
+            - mountPath: /etc/hyperledger/fabric-ca-server
+              name: $(ORG)-ca-storage
+              subPath: organizations/fabric-ca/$(ORG)Org
+          resources:
+            limits:
+              memory: '256Mi'
+              cpu: '100m'
+          ports:
+            - containerPort: 7054
+      volumes:
+        - name: $(ORG)-ca-storage
+          persistentVolumeClaim:
+            claimName: common-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: $(ORG)-ca-svc
+  namespace: hyperledger
+  labels:
+    app: $(ORG)-ca
+    type: blockchain
+spec:
+  type: ClusterIP
+  selector:
+    app: $(ORG)-ca
+    type: blockchain
+  ports:
+    - port: 7054
+      protocol: TCP
+      targetPort: 7054
